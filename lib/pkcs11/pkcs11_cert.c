@@ -565,7 +565,33 @@ static CK_RV pkcs11_cert_get_subject_key_id(CK_VOID_PTR pObject, CK_ATTRIBUTE_PT
 
                 if (ATCA_SUCCESS != (ATCA_STATUS)cert_status)
                 {
-                    return CKR_DEVICE_ERROR;
+                    uint8_t subj_public_key[PKCS11_MAX_ECC_PB_KEY_SIZE] = { 0 };
+                    cal_buffer subj_pubkey = CAL_BUF_INIT(sizeof(subj_public_key), subj_public_key);
+
+                    /*
+                     * Some Trust&GO/TNGTLS certificate definitions do not expose
+                     * a Subject Key Identifier, while key objects still expose a
+                     * CKA_ID derived from SHA-1(uncompressed subject public key).
+                     * Fall back to the same derivation so Java/SunPKCS11 can pair
+                     * the certificate with the private key by matching CKA_ID.
+                     */
+                    if ((CKR_OK == read_cache) &&
+                        (ATCA_SUCCESS == atcacert_get_subj_public_key(cert_cfg, NULL, 0, &subj_pubkey)))
+                    {
+                        cert_status = atcacert_get_key_id(&subj_pubkey, subj_key_id);
+                    }
+
+#if ATCACERT_COMPCERT_EN
+                    if ((ATCA_SUCCESS != (ATCA_STATUS)cert_status) && (NULL != psession))
+                    {
+                        cert_status = atcacert_read_subj_key_id_ext(psession->slot->device_ctx, cert_cfg, subj_key_id);
+                    }
+#endif
+
+                    if (ATCA_SUCCESS != (ATCA_STATUS)cert_status)
+                    {
+                        return CKR_DEVICE_ERROR;
+                    }
                 }
 
                 return pkcs11_attrib_fill(pAttribute, subj_key_id, (CK_ULONG)sizeof(subj_key_id));

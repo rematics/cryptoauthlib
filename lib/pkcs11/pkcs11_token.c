@@ -432,11 +432,17 @@ CK_RV pkcs11_token_get_info(CK_SLOT_ID slotID, CK_TOKEN_INFO_PTR pInfo)
     pInfo->ulMinPinLen = 0;
     pInfo->flags = CKF_RNG;// | CKF_LOGIN_REQUIRED;
 
-    pInfo->ulMaxSessionCount = 1;
-    pInfo->ulMaxRwSessionCount = 1;
+    /*
+     * Java/SunPKCS11 opens nested operation sessions while mapping a PKCS#11
+     * KeyStore. The library already supports multiple session contexts through
+     * PKCS11_MAX_SESSIONS_ALLOWED, so advertise that limit instead of a single
+     * session. The current session count is not tracked per slot.
+     */
+    pInfo->ulMaxSessionCount = PKCS11_MAX_SESSIONS_ALLOWED;
+    pInfo->ulMaxRwSessionCount = PKCS11_MAX_SESSIONS_ALLOWED;
 
-    pInfo->ulSessionCount = (slot_ctx->session != 0u) ? 1u : 0u;
-    pInfo->ulRwSessionCount = (slot_ctx->session != 0u) ? 1u : 0u;
+    pInfo->ulSessionCount = CK_UNAVAILABLE_INFORMATION;
+    pInfo->ulRwSessionCount = CK_UNAVAILABLE_INFORMATION;
 
     PKCS11_DEBUG("Token Info: %d\r\n", slot_ctx->slot_state);
 
