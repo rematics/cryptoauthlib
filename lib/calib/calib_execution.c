@@ -523,6 +523,20 @@ ATCA_STATUS calib_execute_command(ATCAPacket* packet, ATCADevice device)
         {
             if ((uint8_t)ATCA_DEVICE_STATE_ACTIVE != device->device_state)
             {
+                /* DS40002250A section 7.1.1: traffic for other devices on a bus
+                 * Rematics specific fix: BMU should do this idle command see:
+                 * page 57 (multiple devices on the bus)
+                 * https://ww1.microchip.com/downloads/en/DeviceDoc/ATECC608B-TNGTLS-CryptoAuthentication-Data-Sheet-DS40002250A.pdf
+                 * below ~300 kHz can wake the device. A wake sent to an awake
+                 * device is ignored, so its watchdog keeps running and the
+                 * command can fail with 0xEE (watchdog about to expire).
+                 * Idle first, so the wake below starts a full watchdog window.
+                 * Idle keeps TempKey. A sleeping device NACKs this; ignore it. */
+                if (!atcab_is_ca2_device(device->mIface.mIfaceCFG->devtype))
+                {
+                    (void)calib_idle(device);
+                }
+
                 if (ATCA_SUCCESS == (status = calib_wakeup(device)))
                 {
                     device->device_state = (uint8_t)ATCA_DEVICE_STATE_ACTIVE;
